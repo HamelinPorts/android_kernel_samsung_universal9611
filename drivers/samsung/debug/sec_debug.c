@@ -21,6 +21,7 @@
 #include <linux/file.h>
 #include <linux/sec_class.h>
 #include <linux/sec_ext.h>
+#include <soc/samsung/exynos-pmu.h>
 #include <linux/sec_debug.h>
 #include <linux/sec_hard_reset_hook.h>
 #include <linux/slab.h>
@@ -290,6 +291,49 @@ static ssize_t store_recovery_cause(struct device *dev, struct device_attribute 
 
 static DEVICE_ATTR(recovery_cause, 0660, show_recovery_cause, store_recovery_cause);
 
+/*
+ * Escape hatch for the 6.12 rebase's PMU INFORM4 sticky-recovery flag.
+ * The 6.12 kernel writes 0xA51DEAD to INFORM4 from its panic notifier /
+ * restart handler / auto-recovery hrtimer to force every subsequent
+ * boot back into /recovery.  This sysfs node lets a 4.14 LOS recovery
+ * shell clear it.  Read returns the current INFORM4 hex value; any
+ * write to this node clears INFORM4 to 0.
+ */
+static ssize_t show_clear_pmu_inform4(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	unsigned int v = 0;
+
+	exynos_pmu_read(EXYNOS_PMU_INFORM4, &v);
+	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", v);
+}
+
+static ssize_t store_clear_pmu_inform4(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
+{
+	unsigned int v = 0;
+	unsigned int want = 0;
+
+	/* Accept hex value (e.g. "a51dead" to set the bouncer magic) or
+	 * any non-hex (e.g. "1", "clear") to clear to 0.  Mode 0660 still
+	 * applies — root-only.  This lets a recovery shell deliberately
+	 * arm the 6.12 INFORM4 bouncer to isolate "is BL routing to
+	 * /recovery via INFORM3?" from "is the magic actually getting
+	 * set?". */
+	if (kstrtouint(buf, 16, &want) != 0)
+		want = 0;
+
+	exynos_pmu_write(EXYNOS_PMU_INFORM4, want);
+	exynos_pmu_read(EXYNOS_PMU_INFORM4, &v);
+	pr_emerg("sec_debug: clear_pmu_inform4 — wrote=0x%08x readback=0x%08x\n",
+		 want, v);
+	return count;
+}
+
+static DEVICE_ATTR(clear_pmu_inform4, 0660,
+		   show_clear_pmu_inform4, store_clear_pmu_inform4);
+
 void sec_debug_recovery_reboot(void)
 {
 	char *buf;
@@ -331,6 +375,9 @@ static int __init sec_debug_recovery_cause_init(void)
 
 	if (device_create_file(dev, &dev_attr_recovery_cause) < 0)
 		pr_err("%s: Failed to create device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_clear_pmu_inform4) < 0)
+		pr_err("%s: Failed to create clear_pmu_inform4 device file\n", __func__);
 
 	return 0;
 }
