@@ -365,6 +365,35 @@ static ssize_t store_inform8(struct device *dev,
 
 static DEVICE_ATTR(inform8, 0660, show_inform8, store_inform8);
 
+/* INFORM9 = scratch register the 6.12 kernel writes secondary
+ * diagnostic data to (e.g. pa_start >> 8 of failing memblock range
+ * inside kasan_init).  Read-only-style sysfs; non-hex write clears. */
+static ssize_t show_inform9(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	unsigned int v = 0;
+
+	exynos_pmu_read(EXYNOS_PMU_INFORM9, &v);
+	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", v);
+}
+
+static ssize_t store_inform9(struct device *dev,
+			     struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	unsigned int want = 0, v = 0;
+
+	if (kstrtouint(buf, 16, &want) != 0)
+		want = 0;
+	exynos_pmu_write(EXYNOS_PMU_INFORM9, want);
+	exynos_pmu_read(EXYNOS_PMU_INFORM9, &v);
+	pr_emerg("sec_debug: inform9 — wrote=0x%08x readback=0x%08x\n",
+		 want, v);
+	return count;
+}
+
+static DEVICE_ATTR(inform9, 0660, show_inform9, store_inform9);
+
 void sec_debug_recovery_reboot(void)
 {
 	char *buf;
@@ -412,6 +441,9 @@ static int __init sec_debug_recovery_cause_init(void)
 
 	if (device_create_file(dev, &dev_attr_inform8) < 0)
 		pr_err("%s: Failed to create inform8 device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_inform9) < 0)
+		pr_err("%s: Failed to create inform9 device file\n", __func__);
 
 	return 0;
 }
