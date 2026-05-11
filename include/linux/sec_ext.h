@@ -28,6 +28,9 @@
 #define EXYNOS_PMU_INFORM3 0x080C
 #define EXYNOS_PMU_INFORM4 0x0810
 
+/* INFORM8 = 6.12 rebase boot-progress marker (encoded as
+ * 0xA51000XX where XX is the last reached stage code).  Survives WDT
+ * reset; readback exposed via /sys/class/sec/sec_debug/inform8. */
 #define EXYNOS_PMU_INFORM8 0x0850
 #define EXYNOS_PMU_INFORM9 0x0854
 

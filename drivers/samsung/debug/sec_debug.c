@@ -334,6 +334,37 @@ static ssize_t store_clear_pmu_inform4(struct device *dev,
 static DEVICE_ATTR(clear_pmu_inform4, 0660,
 		   show_clear_pmu_inform4, store_clear_pmu_inform4);
 
+/* INFORM8 = 6.12 rebase boot-progress marker.  The 6.12 kernel writes
+ * 0xA51000XX to INFORM8 at each milestone (bouncer exit, parse_early_param,
+ * etc.); after a WDT reset the value reveals the last reached stage.
+ * Read-only — POR is the only way to clear (or recovery can write 0
+ * via the same hex-accept handler if needed). */
+static ssize_t show_inform8(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	unsigned int v = 0;
+
+	exynos_pmu_read(EXYNOS_PMU_INFORM8, &v);
+	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", v);
+}
+
+static ssize_t store_inform8(struct device *dev,
+			     struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	unsigned int want = 0, v = 0;
+
+	if (kstrtouint(buf, 16, &want) != 0)
+		want = 0;
+	exynos_pmu_write(EXYNOS_PMU_INFORM8, want);
+	exynos_pmu_read(EXYNOS_PMU_INFORM8, &v);
+	pr_emerg("sec_debug: inform8 — wrote=0x%08x readback=0x%08x\n",
+		 want, v);
+	return count;
+}
+
+static DEVICE_ATTR(inform8, 0660, show_inform8, store_inform8);
+
 void sec_debug_recovery_reboot(void)
 {
 	char *buf;
@@ -378,6 +409,9 @@ static int __init sec_debug_recovery_cause_init(void)
 
 	if (device_create_file(dev, &dev_attr_clear_pmu_inform4) < 0)
 		pr_err("%s: Failed to create clear_pmu_inform4 device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_inform8) < 0)
+		pr_err("%s: Failed to create inform8 device file\n", __func__);
 
 	return 0;
 }
