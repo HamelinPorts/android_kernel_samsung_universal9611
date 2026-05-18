@@ -57,7 +57,15 @@
 #define DSS_LOG_PLATFORM_SIZE		(4 * SZ_1M)
 #define DSS_LOG_SFR_SIZE		(2 * SZ_1M)
 #define DSS_LOG_S2D_SIZE		(0)
-#define DSS_LOG_CACHEDUMP_SIZE		(1 * SZ_1M)
+/* A51 6.12 rebase: grown from upstream's 1 MiB to 8 MiB so the
+ * 6.12 earlycon-ram ring (which retargets to log_cachedump via
+ * include/linux/a51_ramcon.h) can capture ~200 s of boot log at
+ * the observed printk rates before wrap.  Subsequent DSS regions
+ * shift up by 7 MiB; new tail (log_kevents end) lands at 0xFAE10000,
+ * still ~2 MiB clear of the next non-DSS reservation (0xFB000000).
+ * Must stay byte-for-byte identical between 4.14 and 6.12 trees so
+ * both DTBs agree on the region map. */
+#define DSS_LOG_CACHEDUMP_SIZE		(8 * SZ_1M)
 #define DSS_LOG_ETM_SIZE		(0)
 #define DSS_LOG_BCM_SIZE		(4 * SZ_1M)
 #define DSS_LOG_PSTORE_SIZE		(2 * SZ_1M)

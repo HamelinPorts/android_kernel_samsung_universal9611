@@ -392,8 +392,12 @@ static inline void print_ppmpu_protection(struct pt_regs *regs) {}
 #define SEC_LKMSG_MAGICKEY 0x0000000a6c6c7546
 extern void sec_debug_save_last_kmsg(unsigned char *head_ptr,
 				unsigned char *curr_ptr, size_t buf_size);
+/* A51 6.12 kernel rebase: snapshot of the log_cachedump region (where
+ * the 6.12 ramcon writes its kmsg).  Exposed via /proc/last_cachedump_kmsg. */
+extern void sec_debug_save_cachedump_log(void);
 #else
 #define sec_debug_save_last_kmsg(a, b, c)		do { } while (0)
+#define sec_debug_save_cachedump_log()			do { } while (0)
 #endif
 
 

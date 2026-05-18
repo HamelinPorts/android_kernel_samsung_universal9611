@@ -738,6 +738,12 @@ static void __init dbg_snapshot_fixmap(void)
 	sec_debug_save_last_kmsg(dss_items[dss_desc.log_kernel_num].head_ptr,
 			dss_items[dss_desc.log_kernel_num].curr_ptr,
 			dss_items[dss_desc.log_kernel_num].entry.size);
+	/* A51 6.12 kernel rebase: snapshot log_cachedump region (where
+	 * the 6.12 ramcon writes) into a vmalloc'd buffer accessible via
+	 * /proc/last_cachedump_kmsg.  log_cachedump's persist=true keeps
+	 * the region intact through this init; 4.14 doesn't write to it
+	 * during normal boot, so the snapshot captures pure 6.12 content. */
+	sec_debug_save_cachedump_log();
 #endif
 }
 

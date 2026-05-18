@@ -21,6 +21,8 @@ obj-$(CONFIG_SEC_DEBUG_EXTRA_INFO)	+= sec_debug_extra_info.o
 obj-$(CONFIG_SEC_DEBUG_HW_PARAM)	+= sec_debug_hw_param.o
 obj-$(CONFIG_SEC_DEBUG_AUTO_COMMENT)	+= sec_debug_auto_comment.o
 obj-$(CONFIG_SEC_DEBUG_LAST_KMSG)	+= sec_debug_last_kmsg.o
+# A51 6.12 kernel rebase: reader for 6.12 ramcon log at log_cachedump.
+obj-$(CONFIG_SEC_DEBUG_LAST_KMSG)	+= sec_debug_cachedump.o
 obj-$(CONFIG_SEC_DEBUG_FIRST_KMSG)	+= sec_debug_first_kmsg.o
 obj-$(CONFIG_SEC_DEBUG_DTASK)		+= sec_debug_dtask.o
 obj-$(CONFIG_SEC_BOOTSTAT)		+= sec_bootstat.o
