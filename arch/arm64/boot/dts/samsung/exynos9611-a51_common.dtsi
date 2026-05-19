@@ -708,7 +708,12 @@
 			/* Secure RPMB */
 			ufs-srpmb {
 				compatible = "samsung,ufs-srpmb";
-				interrupts = <0 460 0>;
+				/* 6.12 forward-port: GIC v2 rejects type=0
+				 * (IRQ_TYPE_NONE) and warns "HW irq 492 has
+				 * invalid type".  SPI 460 is a peripheral
+				 * interrupt — level-high is the correct
+				 * trigger.  4.14 accepted 0 silently. */
+				interrupts = <0 460 4>;
 			};
 
 			usb3_ss_tune:usb3_ss_tune {
