@@ -1,6 +1,8 @@
 #include "pmucal_cp.h"
 #include "pmucal_rae.h"
 
+static void pmucal_cp_dump_sfrs(const char *when);
+
 /**
  *  pmucal_cp_init - init cp.
  *		        exposed to PWRCAL interface.
@@ -18,6 +20,8 @@ int pmucal_cp_init(void)
 				PMUCAL_PREFIX);
 		return -ENOENT;
 	}
+
+	pmucal_cp_dump_sfrs("pre-cp-init");
 
 	ret = pmucal_rae_handle_cp_seq(pmucal_cp_list.init,
 				pmucal_cp_list.num_init);
@@ -211,6 +215,57 @@ int pmucal_is_cp_smc_regs(struct pmucal_seq *seq) {
 	if (seq->offset == PMU_CP_CTRL_S_OFFSET || seq->offset == PMU_CP_CTRL_NS_OFFSET)
 		use_smc = 1;
 	return use_smc;
+}
+
+static u32 pmucal_cp_smc_read_ctrl(int reg)
+{
+	u32 lo, hi, v;
+
+	v = exynos_smc(SMC_ID, READ_CTRL, 0, reg);
+	if (v & 0xffff)
+		return 0xdead0000 | (v & 0xffff);
+	lo = v >> 16;
+
+	v = exynos_smc(SMC_ID, READ_CTRL, 1, reg);
+	if (v & 0xffff)
+		return 0xdead0000 | (v & 0xffff);
+	hi = v >> 16;
+
+	return (hi << 16) | lo;
+}
+
+static void pmucal_cp_dump_sfrs(const char *when)
+{
+	void __iomem *pmu;
+	u32 off;
+
+	if (!pmucal_cp_list.init || !pmucal_cp_list.num_init) {
+		pr_info("%s%s: no cp-init seq; cannot resolve PMU base\n",
+				PMUCAL_PREFIX, __func__);
+		return;
+	}
+
+	/* every cp_init seq element is based at PMU PA 0x11860000 */
+	pmu = pmucal_cp_list.init[0].base_va;
+	if (!pmu) {
+		pr_info("%s%s: PMU base_va not mapped\n", PMUCAL_PREFIX, __func__);
+		return;
+	}
+
+	pr_info("%s cp-sfr-dump [%s]:\n", PMUCAL_PREFIX, when);
+	pr_info("%s   CP_CTRL_NS              = 0x%08x (smc)\n",
+			PMUCAL_PREFIX, pmucal_cp_smc_read_ctrl(CP_CTRL_NS));
+	pr_info("%s   CP_CTRL_S               = 0x%08x (smc)\n",
+			PMUCAL_PREFIX, pmucal_cp_smc_read_ctrl(CP_CTRL_S));
+	pr_info("%s   CP_STAT          (0x038)= 0x%08x\n",
+			PMUCAL_PREFIX, __raw_readl(pmu + 0x0038));
+	pr_info("%s   CENTRAL_SEQ_CP   (0x284)= 0x%08x\n",
+			PMUCAL_PREFIX, __raw_readl(pmu + 0x0284));
+	pr_info("%s   RESET_SEQ_STATUS (0x504)= 0x%08x\n",
+			PMUCAL_PREFIX, __raw_readl(pmu + 0x0504));
+	for (off = 0x1320; off <= 0x1338; off += 4)
+		pr_info("%s   SYS_PWR_CP       (0x%03x)= 0x%08x\n",
+				PMUCAL_PREFIX, off, __raw_readl(pmu + off));
 }
 
 void pmucal_smc_read(struct pmucal_seq *seq, int update)
