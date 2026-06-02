@@ -68,6 +68,17 @@
 #include <scsi/scsi_eh.h>
 #include <scsi/scsi_ioctl.h>
 
+/* Verbose UFS bring-up tracing — runtime toggle, default off.
+ * Enable with `ufshcd.ufs_trace=1` on the kernel cmdline, or at runtime via
+ * /sys/module/ufshcd/parameters/ufs_trace. Kept quiet by default so it does
+ * not flood the pstore/last_kmsg ring during normal boots. */
+extern bool ufs_trace_enabled;
+#define ufs_trace(fmt, ...) \
+	do { \
+		if (unlikely(ufs_trace_enabled)) \
+			pr_emerg("[ufs-trace] " fmt, ##__VA_ARGS__); \
+	} while (0)
+
 #define CUSTOMIZE_UPIU_FLAGS
 
 #include "ufs.h"

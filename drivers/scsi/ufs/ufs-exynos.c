@@ -452,25 +452,40 @@ static void exynos_ufs_init_host(struct exynos_ufs *ufs)
 {
 	u32 reg;
 
+	ufs_trace("init_host ENTER mclk_pre=%u\n", ufs->mclk_rate);
+
 	/* internal clock control */
 	exynos_ufs_ctrl_auto_hci_clk(ufs, false);
+	ufs_trace("init_host: post auto_hci_clk(off)\n");
 	exynos_ufs_set_unipro_mclk(ufs);
+	ufs_trace("init_host: post set_unipro_mclk -> mclk=%u\n", ufs->mclk_rate);
 
 	/* period for interrupt aggregation */
 	exynos_ufs_fit_aggr_timeout(ufs);
+	ufs_trace("init_host: post fit_aggr_timeout (V2P1=0x%08x 1US=0x%08x)\n",
+		hci_readl(ufs, HCI_UFSHCI_V2P1_CTRL),
+		hci_readl(ufs, HCI_1US_TO_CNT_VAL));
 
 	/* misc HCI configurations */
 	hci_writel(ufs, 0xA, HCI_DATA_REORDER);
+	ufs_trace("init_host: HCI_DATA_REORDER=0xA\n");
 	hci_writel(ufs, PRDT_PREFECT_EN | PRDT_SET_SIZE(12),
 			HCI_TXPRDT_ENTRY_SIZE);
+	ufs_trace("init_host: HCI_TXPRDT_ENTRY_SIZE=0x%08x\n",
+		hci_readl(ufs, HCI_TXPRDT_ENTRY_SIZE));
 	hci_writel(ufs, PRDT_SET_SIZE(12), HCI_RXPRDT_ENTRY_SIZE);
+	ufs_trace("init_host: HCI_RXPRDT_ENTRY_SIZE=0x%08x\n",
+		hci_readl(ufs, HCI_RXPRDT_ENTRY_SIZE));
 	hci_writel(ufs, 0xFFFFFFFF, HCI_UTRL_NEXUS_TYPE);
 	hci_writel(ufs, 0xFFFFFFFF, HCI_UTMRL_NEXUS_TYPE);
+	ufs_trace("init_host: NEXUS_TYPE both = 0xFFFFFFFF\n");
 
 	reg = hci_readl(ufs, HCI_AXIDMA_RWDATA_BURST_LEN) &
 					~BURST_LEN(0);
 	hci_writel(ufs, WLU_EN | BURST_LEN(3),
 					HCI_AXIDMA_RWDATA_BURST_LEN);
+	ufs_trace("init_host: HCI_AXIDMA_RWDATA_BURST_LEN=0x%08x\n",
+		hci_readl(ufs, HCI_AXIDMA_RWDATA_BURST_LEN));
 
 	/*
 	 * Enable HWAGC control by IOP
@@ -480,6 +495,9 @@ static void exynos_ufs_init_host(struct exynos_ufs *ufs)
 	 */
 	reg = hci_readl(ufs, HCI_IOP_ACG_DISABLE);
 	hci_writel(ufs, reg & (~HCI_IOP_ACG_DISABLE_EN), HCI_IOP_ACG_DISABLE);
+	ufs_trace("init_host: HCI_IOP_ACG_DISABLE pre=0x%08x post=0x%08x\n",
+		reg, hci_readl(ufs, HCI_IOP_ACG_DISABLE));
+	ufs_trace("init_host EXIT\n");
 }
 
 static void exynos_ufs_pre_hibern8(struct ufs_hba *hba, u8 enter)
@@ -643,9 +661,11 @@ static void exynos_ufs_host_reset(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	unsigned long timeout = jiffies + msecs_to_jiffies(1);
 
+	ufs_trace("host_reset ENTER\n");
 	exynos_ufs_ctrl_auto_hci_clk(ufs, false);
 
 	hci_writel(ufs, UFS_SW_RST_MASK, HCI_SW_RST);
+	ufs_trace("host_reset: HCI_SW_RST=UFS_SW_RST_MASK\n");
 
 	do {
 		if (!(hci_readl(ufs, HCI_SW_RST) & UFS_SW_RST_MASK))
@@ -664,11 +684,13 @@ success:
 
 	/* device reset */
 	exynos_ufs_dev_hw_reset(hba);
+	ufs_trace("host_reset: post dev_hw_reset\n");
 
 	/* secure log */
 #ifdef CONFIG_EXYNOS_SMC_LOGGING
 	exynos_smc(SMC_CMD_UFS_LOG, 0, 0, 0);
 #endif
+	ufs_trace("host_reset EXIT\n");
 out:
 	return;
 }
@@ -852,6 +874,7 @@ static int exynos_ufs_link_startup_notify(struct ufs_hba *hba,
 
 	switch (status) {
 	case PRE_CHANGE:
+		ufs_trace("link_startup PRE_CHANGE ENTER\n");
 		/* refer to hba */
 		ufs->hba = hba;
 
@@ -861,12 +884,17 @@ static int exynos_ufs_link_startup_notify(struct ufs_hba *hba,
 		exynos_ufs_config_intr(ufs, DFES_DEF_T_ERRS, UNIP_T_LYR);
 
 		ufs->mclk_rate = clk_get_rate(ufs->clk_unipro);
+		ufs_trace("link_startup PRE_CHANGE: mclk_rate=%u\n",
+			 ufs->mclk_rate);
 
 		ret = ufs_pre_link(ufs);
+		ufs_trace("link_startup PRE_CHANGE EXIT ret=%d\n", ret);
 		break;
 	case POST_CHANGE:
+		ufs_trace("link_startup POST_CHANGE ENTER\n");
 		/* UIC configuration table after link startup */
 		ret = ufs_post_link(ufs);
+		ufs_trace("link_startup POST_CHANGE EXIT ret=%d\n", ret);
 		break;
 	default:
 		break;
@@ -886,15 +914,22 @@ static int exynos_ufs_pwr_change_notify(struct ufs_hba *hba,
 
 	switch (status) {
 	case PRE_CHANGE:
+		ufs_trace("pwr_change PRE_CHANGE ENTER max[gear=%d lane=%d pwr=%d hs=%d] req[gear=%d lane=%d pwr=%d hs=%d]\n",
+			 pwr_max->gear_rx, pwr_max->lane_rx, pwr_max->pwr_rx, pwr_max->hs_rate,
+			 pwr_req->gear_rx, pwr_req->lane_rx, pwr_req->pwr_rx, pwr_req->hs_rate);
 
 		/* Set PMC parameters to be requested */
 		exynos_ufs_init_pmc_req(hba, pwr_max, pwr_req);
+		ufs_trace("pwr_change PRE_CHANGE: post init_pmc_req req[gear=%d lane=%d pwr=%d hs=%d]\n",
+			 pwr_req->gear_rx, pwr_req->lane_rx, pwr_req->pwr_rx, pwr_req->hs_rate);
 
 		/* UIC configuration table before power mode change */
 		ret = ufs_pre_gear_change(ufs, act_pmd);
+		ufs_trace("pwr_change PRE_CHANGE EXIT ret=%d\n", ret);
 
 		break;
 	case POST_CHANGE:
+		ufs_trace("pwr_change POST_CHANGE ENTER\n");
 
 		/* update active lanes after pmc */
 		exynos_ufs_update_active_lanes(hba);
@@ -906,6 +941,8 @@ static int exynos_ufs_pwr_change_notify(struct ufs_hba *hba,
 				"Power mode change(%d): M(%d)G(%d)L(%d)HS-series(%d)\n",
 				ret, act_pmd->mode, act_pmd->gear,
 				act_pmd->lane, act_pmd->hs_series);
+		ufs_trace("pwr_change POST_CHANGE EXIT ret=%d M=%d G=%d L=%d HS=%d\n",
+			 ret, act_pmd->mode, act_pmd->gear, act_pmd->lane, act_pmd->hs_series);
 		break;
 	default:
 		break;
@@ -928,6 +965,8 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 		type &= ~(1 << tag);
 
 	hci_writel(ufs, type, HCI_UTRL_NEXUS_TYPE);
+	ufs_trace("set_nexus_t_xfer_req tag=%d cmd=%s op=0x%02x NEXUS_TYPE=0x%08x\n",
+		 tag, cmd ? "scsi" : "dev", cmd ? cmd->cmnd[0] : 0xFF, type);
 }
 
 static void exynos_ufs_set_nexus_t_task_mgmt(struct ufs_hba *hba, int tag, u8 tm_func)

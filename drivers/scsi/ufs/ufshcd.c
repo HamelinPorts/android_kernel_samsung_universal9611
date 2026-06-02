@@ -59,6 +59,13 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs.h>
 
+/* Verbose UFS bring-up tracing — see ufs_trace() in ufshcd.h. Default off;
+ * toggle via `ufshcd.ufs_trace=1` cmdline or the module param at runtime. */
+bool ufs_trace_enabled;
+module_param_named(ufs_trace, ufs_trace_enabled, bool, 0644);
+MODULE_PARM_DESC(ufs_trace, "Verbose UFS bring-up tracing (default off)");
+EXPORT_SYMBOL(ufs_trace_enabled);
+
 #define UFSHCD_REQ_SENSE_SIZE	18
 
 #define UFSHCD_ENABLE_INTRS	(UTP_TRANSFER_REQ_COMPL |\
@@ -2199,6 +2206,21 @@ static void ufshcd_clk_scaling_update_busy(struct ufs_hba *hba)
 static inline
 void ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag)
 {
+	struct ufshcd_lrb *lrbp = &hba->lrb[task_tag];
+	u8 op = 0xFF;
+	u8 lun = 0xFF;
+
+	if (lrbp && lrbp->cmd) {
+		op = lrbp->cmd->cmnd[0];
+		lun = lrbp->lun;
+	} else if (lrbp) {
+		lun = lrbp->lun;
+	}
+	ufs_trace("send_command tag=%u type=%d lun=0x%02x op=0x%02x outstanding_pre=0x%lx DBR_pre=0x%08x\n",
+		 task_tag, lrbp ? lrbp->command_type : -1, lun, op,
+		 hba->outstanding_reqs,
+		 ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL));
+
 	hba->lrb[task_tag].issue_time_stamp = ktime_get();
 #if defined(CONFIG_PM_DEVFREQ)
 	ufshcd_clk_scaling_start_busy(hba);
@@ -2207,6 +2229,10 @@ void ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag)
 	ufshcd_writel(hba, 1 << task_tag, REG_UTP_TRANSFER_REQ_DOOR_BELL);
 	/* Make sure that doorbell is committed immediately */
 	wmb();
+	ufs_trace("send_command tag=%u DBR_post=0x%08x IS=0x%08x\n",
+		 task_tag,
+		 ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL),
+		 ufshcd_readl(hba, REG_INTERRUPT_STATUS));
 	ufshcd_add_command_trace(hba, task_tag, "send");
 }
 
@@ -6515,9 +6541,13 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 	irqreturn_t retval = IRQ_NONE;
 	struct ufs_hba *hba = __hba;
 	int retries = hba->nutrs;
+	u32 intr_pass = 0;
 
 	spin_lock(hba->host->host_lock);
 	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
+	ufs_trace("intr ENTER IS=0x%08x DBR=0x%08x\n",
+		 intr_status,
+		 ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL));
 
 	/*
 	 * There could be max of hba->nutrs reqs in flight and in worst case
@@ -6531,6 +6561,9 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 		if (intr_status)
 			ufshcd_writel(hba, intr_status, REG_INTERRUPT_STATUS);
 		if (enabled_intr_status) {
+			ufs_trace("intr pass=%u IS=0x%08x masked=0x%08x DBR=0x%08x\n",
+				 intr_pass++, intr_status, enabled_intr_status,
+				 ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL));
 			ufshcd_sl_intr(hba, enabled_intr_status);
 			retval = IRQ_HANDLED;
 		}
