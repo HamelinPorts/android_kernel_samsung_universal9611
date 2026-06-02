@@ -394,6 +394,61 @@ static ssize_t store_inform9(struct device *dev,
 
 static DEVICE_ATTR(inform9, 0660, show_inform9, store_inform9);
 
+/* INFORM10 / INFORM11 = 6.12-side CPU7 watchdog diagnostic scratch
+ * (observed arch_timer rate, parsed wd_secs).  Read-only-style: any
+ * non-hex write clears to 0. */
+static ssize_t show_inform10(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	unsigned int v = 0;
+
+	exynos_pmu_read(EXYNOS_PMU_INFORM10, &v);
+	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", v);
+}
+
+static ssize_t store_inform10(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	unsigned int want = 0, v = 0;
+
+	if (kstrtouint(buf, 16, &want) != 0)
+		want = 0;
+	exynos_pmu_write(EXYNOS_PMU_INFORM10, want);
+	exynos_pmu_read(EXYNOS_PMU_INFORM10, &v);
+	pr_emerg("sec_debug: inform10 — wrote=0x%08x readback=0x%08x\n",
+		 want, v);
+	return count;
+}
+
+static DEVICE_ATTR(inform10, 0660, show_inform10, store_inform10);
+
+static ssize_t show_inform11(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	unsigned int v = 0;
+
+	exynos_pmu_read(EXYNOS_PMU_INFORM11, &v);
+	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", v);
+}
+
+static ssize_t store_inform11(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	unsigned int want = 0, v = 0;
+
+	if (kstrtouint(buf, 16, &want) != 0)
+		want = 0;
+	exynos_pmu_write(EXYNOS_PMU_INFORM11, want);
+	exynos_pmu_read(EXYNOS_PMU_INFORM11, &v);
+	pr_emerg("sec_debug: inform11 — wrote=0x%08x readback=0x%08x\n",
+		 want, v);
+	return count;
+}
+
+static DEVICE_ATTR(inform11, 0660, show_inform11, store_inform11);
+
 void sec_debug_recovery_reboot(void)
 {
 	char *buf;
@@ -444,6 +499,12 @@ static int __init sec_debug_recovery_cause_init(void)
 
 	if (device_create_file(dev, &dev_attr_inform9) < 0)
 		pr_err("%s: Failed to create inform9 device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_inform10) < 0)
+		pr_err("%s: Failed to create inform10 device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_inform11) < 0)
+		pr_err("%s: Failed to create inform11 device file\n", __func__);
 
 	return 0;
 }

@@ -33,6 +33,8 @@
  * reset; readback exposed via /sys/class/sec/sec_debug/inform8. */
 #define EXYNOS_PMU_INFORM8 0x0850
 #define EXYNOS_PMU_INFORM9 0x0854
+#define EXYNOS_PMU_INFORM10 0x0858
+#define EXYNOS_PMU_INFORM11 0x085C
 
 #define EXYNOS_PMU_PS_HOLD_CONTROL 0x330C
 
